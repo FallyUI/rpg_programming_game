@@ -3,3 +3,5 @@ data/classes.pkl
 data/data.json
 data/x_y.txt
 data/x_y_fight.txt
+user_code.py
+__pycache__/

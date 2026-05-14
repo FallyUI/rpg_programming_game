@@ -1,5 +1,6 @@
-import pygame
-from files import dump_x_y, load_x_y, load_json
+import pygame, time
+from random import randint
+from files import dump_x_y, load_x_y, load_json, load_enemies, save_enemies
 
 
 size = {"width": 800, "height": 600}
@@ -33,9 +34,23 @@ ENEMY = []
 STAGE_PLAYER_LEVEL = 1
 PAST_GAME_STATE_STATUS = ''
 GAME_STAGE_STATUS = 'main_menu'
-ANIMATION_SIDE = 'right'
+PREV_GAME_STAGE_STATUS = ''
 PHASE_PLAYER_ANIMATION = 0
 ANIMATION_DELAY = 500
+
+
+LEVEL_CONFIG = {
+    1: {"types": ["slime"], "count": (1, 3)},
+    2: {"types": ["slime"], "count": (2, 4)},
+    3: {"types": ["slime"], "count": (3, 5)},
+}
+
+
+ENEMY_SCREEN_X = 560
+ENEMY_SPACING_X = 70
+ENEMY_SCREEN_Y = 425
+HIT_FLASH_DURATION = 0.3
+DIED_SHOW_DURATION = 1.5
 
 
 
@@ -72,6 +87,16 @@ class GameWindow:
             pygame.image.load('images/characters/archer/archer_idle_left_1_96.png').convert_alpha(),
             pygame.image.load('images/characters/archer/archer_idle_left_2_96.png').convert_alpha()
         ]
+        self.slime_animation = [
+            pygame.image.load('images/enemies/slime/slime_idle_1_96.png').convert_alpha(),
+            pygame.image.load('images/enemies/slime/slime_idle_2_96.png').convert_alpha()
+        ]
+        self.slime_animation_damage = [
+            pygame.image.load('images/enemies/slime/slime_damaged_1_96.png').convert_alpha(),
+            pygame.image.load('images/enemies/slime/slime_damaged_2_96.png').convert_alpha()
+        ]
+        self.slime_animation_crit_damage = pygame.image.load('images/enemies/slime/slime_damaged_3_96.png').convert_alpha()
+        self.slime_animation_died = pygame.image.load('images/enemies/slime/slime_died_96.png').convert_alpha()
 
         self.font_bold_80 = pygame.font.Font('fonts/Nunito-Bold.ttf', 80)
         self.font_bold_60 = pygame.font.Font('fonts/Nunito-Bold.ttf', 60)
@@ -86,9 +111,57 @@ class GameWindow:
         PLAYER = self.knight_animation_right
 
 
-def generate_enemies():
-    ...
+def generate_level_enemies(level):
+    config = LEVEL_CONFIG.get(level, LEVEL_CONFIG[1])
+    count = randint(*config["count"])
+    enemies = []
+    for i in range(count):
+        enemy_type = config["types"][0]
+        if enemy_type == "slime":
+            world_x = (ENEMY_SCREEN_X - FIGHT_BG_START_X) + i * ENEMY_SPACING_X
+            enemies.append({
+                "type": "slime",
+                "category": "Slime",
+                "category_up": "Wizard",
+                "health": 40,
+                "max_health": 40,
+                "armor": 0,
+                "alive": True,
+                "hit_at": 0.0,
+                "hit_type": "none",
+                "world_x": world_x
+            })
+    save_enemies(enemies)
+    print(f"Уровень {level}: создано {count} врагов")
 
+
+def get_slime_sprite(enemy, window, anim_phase):
+    now = time.time()
+    hit_age = now - enemy["hit_at"]
+    hit_type = enemy.get("hit_type", "none")
+
+    if hit_type == "died" and hit_age < DIED_SHOW_DURATION:
+        return window.slime_animation_died
+
+    if hit_type in ("crit", "normal") and hit_age < HIT_FLASH_DURATION:
+        if hit_type == "crit":
+            return window.slime_animation_crit_damage
+        else:
+            return window.slime_animation_damage[anim_phase]
+
+    if not enemy["alive"]:
+        return window.slime_animation_died
+
+    return window.slime_animation[anim_phase]
+
+
+def render_enemies(screen, window, anim_phase):
+    enemies = load_enemies()
+    for i, enemy in enumerate(enemies):
+        ex = enemy.get("world_x", ENEMY_SCREEN_X + i * ENEMY_SPACING_X) + BG_X_FIGHT
+        ey = ENEMY_SCREEN_Y
+        sprite = get_slime_sprite(enemy, window, anim_phase)
+        screen.blit(sprite, (ex, ey))
 
 
 def player_animation(last_animation_tick):
@@ -101,11 +174,6 @@ def player_animation(last_animation_tick):
             PHASE_PLAYER_ANIMATION += 1
         last_animation_tick = now_ticks
     return last_animation_tick
-
-
-def change_animation(side):
-    global ANIMATION_SIDE
-    ANIMATION_SIDE = side
 
 
 def check_animation(window):
@@ -225,7 +293,7 @@ def pause_menu(screen, font):
 
 
 def pygame_init():
-    global GAME_STAGE_STATUS, PAST_GAME_STATE_STATUS, PHASE_PLAYER_ANIMATION, PLAYER
+    global GAME_STAGE_STATUS, PAST_GAME_STATE_STATUS, PHASE_PLAYER_ANIMATION, PLAYER, PREV_GAME_STAGE_STATUS
     window = GameWindow()
     game_screen = window.screen
 
@@ -242,6 +310,11 @@ def pygame_init():
 
     while running:
         pygame.display.update()
+
+        if GAME_STAGE_STATUS == 'fight' and PREV_GAME_STAGE_STATUS != 'fight':
+            generate_level_enemies(STAGE_PLAYER_LEVEL)
+            dump_x_y(FIGHT_BG_START_X, BG_Y_FIGHT, x_y_fight_file)
+        PREV_GAME_STAGE_STATUS = GAME_STAGE_STATUS
 
         if GAME_STAGE_STATUS == 'main_menu':
             main_menu(game_screen, [window.font_bold_80, window.font_bold_60])
@@ -262,7 +335,9 @@ def pygame_init():
 
             change_x_y_fight(x_y_fight_file)
             game_screen.blit(background, (BG_X_FIGHT, BG_Y_FIGHT))
-            game_screen.blit(PLAYER[PHASE_PLAYER_ANIMATION], (player_screen_x, player_screen_y))
+
+            render_enemies(game_screen, window, PHASE_PLAYER_ANIMATION)
+            game_screen.blit(PLAYER[PHASE_PLAYER_ANIMATION],(player_screen_x, player_screen_y))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

@@ -35,6 +35,18 @@ class Warrior:
         self.health = 150
 
 
+#  классы врагов
+
+class Slime:
+    def __init__(self):
+        self.name = 'Слизень'
+        self.category = 'Slime'
+        self.category_up = 'Wizard'
+        self.health = 40
+        self.armor = 0
+        self.damage = 5
+
+
 #  классы оружия
 
 class ShortSword:

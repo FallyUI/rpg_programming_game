@@ -1,6 +1,10 @@
 import pickle, subprocess, json, os, time
 
 
+ENEMIES_FILE = 'data/enemies.json'
+ENEMIES_LOCK = ENEMIES_FILE + '.lock'
+
+
 user_code = ('from actions import *\n'
              'from random import choice, randint\n'
              'import pickle, time\n\n'
@@ -33,14 +37,18 @@ def release_lock(lock_path):
 async def create_code(code):
     checked_code = []
     for line in code:
-        if line == 'while True:':
+        if line.startswith('while'):
             checked_code.append(line + '\n')
-        elif line in ['\tright()', '\tleft()']:
+        elif line.startswith('for'):
+            checked_code.append(line + '\n')
+        elif line in ['\tright()', '\tleft()', '\tattack_enemy()', '\tclear_dead()']:
             checked_code.append(line + '\n')
             checked_code.append('\ttime.sleep(2)\n')
-        elif line in ['right()', 'left()']:
+        elif line in ['right()', 'left()', 'attack_enemy()', 'clear_dead()']:
             checked_code.append(line + '\n')
             checked_code.append('time.sleep(2)\n')
+        elif line.startswith('a =') or line.startswith('b ='):
+            checked_code.append(line + '\n')
 
     return checked_code
 
@@ -68,7 +76,13 @@ def start_file():
         text=True,
         timeout=5
     )
-    return result.stdout
+    output = result.stdout
+    if result.stderr:
+        output += "\n[ошибка]:\n" + result.stderr
+        data = load_json()
+        data["code_status"] = 0
+        save_json(data)
+    return output
 
 
 def load_x_y(file):
@@ -114,3 +128,23 @@ def save_json(data):
     with open('data/data.json', 'w') as file:
         json.dump(data, file)
     return 'ok'
+
+
+def load_enemies():
+    acquire_lock(ENEMIES_LOCK)
+    try:
+        with open(ENEMIES_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+    finally:
+        release_lock(ENEMIES_LOCK)
+
+
+def save_enemies(enemies):
+    acquire_lock(ENEMIES_LOCK)
+    try:
+        with open(ENEMIES_FILE, 'w') as f:
+            json.dump(enemies, f)
+    finally:
+        release_lock(ENEMIES_LOCK)
