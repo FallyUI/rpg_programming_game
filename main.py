@@ -8,7 +8,8 @@ x_y_file = 'data/x_y.txt'
 x_y_fight_file = 'data/x_y_fight.txt'
 
 
-image_background = None
+menu_image_background = None
+fight_image_background = None
 bg_width = size["width"] * 2
 bg_height = size["height"] * 2
 
@@ -31,6 +32,7 @@ dump_x_y(BG_X_FIGHT, BG_Y_FIGHT, x_y_fight_file)
 
 PLAYER = None
 ENEMY = []
+MOUSE_PRESSED = False
 STAGE_PLAYER_LEVEL = 1
 PAST_GAME_STATE_STATUS = ''
 GAME_STAGE_STATUS = 'main_menu'
@@ -56,7 +58,7 @@ DIED_SHOW_DURATION = 1.5
 
 class GameWindow:
     def __init__(self):
-        global image_background, PLAYER
+        global menu_image_background, fight_image_background, PLAYER
         pygame.init()
         self.screen = pygame.display.set_mode((size["width"], size["height"]))
 
@@ -102,7 +104,8 @@ class GameWindow:
         self.font_bold_60 = pygame.font.Font('fonts/Nunito-Bold.ttf', 60)
         self.font_bold_40 = pygame.font.Font('fonts/Nunito-Bold.ttf', 40)
 
-        image_background = pygame.image.load('images/image_background_forest_1600_600.jpg').convert()
+        menu_image_background = pygame.transform.scale(pygame.image.load('images/background_menu.png').convert_alpha(), (512, 512))
+        fight_image_background = pygame.image.load('images/image_background_forest_1600_600.jpg').convert()
 
         sound_background = pygame.mixer.Sound('sounds/background_sound.mp3')
         sound_background.set_volume(0.24)
@@ -211,13 +214,12 @@ def change_x_y_fight(file):
     dump_x_y(BG_X_FIGHT, BG_Y_FIGHT, file)
 
 
-
 def main_menu(screen, fonts):
-    global GAME_STAGE_STATUS
-    screen.fill((100, 100, 100))
+    global GAME_STAGE_STATUS, MOUSE_PRESSED
+    screen.blit(menu_image_background, (-((512 - 800) // 2), -((512 - 600) // 2)))
 
-    text_surface = fonts[0].render('игра', True, (255, 255, 255))
-    text_surface_2 = fonts[1].render('играть', True, (155, 155, 155))
+    text_surface = fonts[0].render('игра', True, (42, 42, 42))
+    text_surface_2 = fonts[1].render('играть', True, (255, 255, 255))
 
     text_surface_rect = text_surface.get_rect(topleft=((size["width"] - text_surface.get_width()) / 2, 110))
     text_surface_2_rect = text_surface_2.get_rect(topleft=((size["width"] - text_surface_2.get_width()) / 2, 350))
@@ -227,28 +229,29 @@ def main_menu(screen, fonts):
 
     mouse = pygame.mouse
     if text_surface_2_rect.collidepoint(mouse.get_pos()):
-        text_surface_2 = fonts[1].render('играть', True, (200, 200, 200))
+        text_surface_2 = fonts[1].render('играть', True, (230, 230, 230))
         screen.blit(text_surface_2, text_surface_2_rect)
         if mouse.get_pressed()[0]:
+            MOUSE_PRESSED = True
             GAME_STAGE_STATUS = 'choose_character'
     else:
-        text_surface_2 = fonts[1].render('играть', True, (155, 155, 155))
+        text_surface_2 = fonts[1].render('играть', True, (255, 255, 255))
         screen.blit(text_surface_2, text_surface_2_rect)
 
 
 def choose_character(window, screen, fonts):
-    global GAME_STAGE_STATUS, PLAYER
-    screen.fill((50, 50, 50))
+    global GAME_STAGE_STATUS, PLAYER, MOUSE_PRESSED
+    screen.blit(menu_image_background, (-((512 - 800) // 2), -((512 - 600) // 2)))
 
-    text_surface = fonts[0].render('выбор персонажа', True, (255, 255, 255))
-    text_surface_2 = fonts[1].render('рыцарь', True, (155, 155, 155))
-    text_surface_3 = fonts[1].render('лучник', True, (155, 155, 155))
-    text_surface_4 = fonts[1].render('маг', True, (155, 155, 155))
+    text_surface = fonts[0].render('персонаж', True, (42, 42, 42))
+    text_surface_2 = fonts[1].render('рыцарь', True, (255, 255, 255))
+    text_surface_3 = fonts[1].render('лучник', True, (255, 255, 255))
+    text_surface_4 = fonts[1].render('маг', True, (255, 255, 255))
 
     text_surface_rect = text_surface.get_rect(topleft=((size["width"] - text_surface.get_width()) / 2, 110))
-    text_surface_2_rect = text_surface_2.get_rect(topleft=((size["width"] - text_surface_2.get_width()) / 2, 220))
-    text_surface_3_rect = text_surface_3.get_rect(topleft=((size["width"] - text_surface_3.get_width()) / 2, 330))
-    text_surface_4_rect = text_surface_4.get_rect(topleft=((size["width"] - text_surface_4.get_width()) / 2, 440))
+    text_surface_2_rect = text_surface_2.get_rect(topleft=((size["width"] - text_surface_2.get_width()) / 2, 250))
+    text_surface_3_rect = text_surface_3.get_rect(topleft=((size["width"] - text_surface_3.get_width()) / 2, 340))
+    text_surface_4_rect = text_surface_4.get_rect(topleft=((size["width"] - text_surface_4.get_width()) / 2, 420))
 
     screen.blit(text_surface, text_surface_rect)
     screen.blit(text_surface_2, text_surface_2_rect)
@@ -257,27 +260,34 @@ def choose_character(window, screen, fonts):
 
     mouse = pygame.mouse
     if text_surface_2_rect.collidepoint(mouse.get_pos()):
-        text_surface_2 = fonts[1].render('рыцарь', True, (200, 200, 200))
+        text_surface_2 = fonts[1].render('рыцарь', True, (230, 230, 230))
         screen.blit(text_surface_2, text_surface_2_rect)
-        if mouse.get_pressed()[0]:
+        if mouse.get_pressed()[0] and MOUSE_PRESSED == False:
             PLAYER = window.knight_animation_right
             GAME_STAGE_STATUS = 'fight'
+        else:
+
+            MOUSE_PRESSED = False
     elif text_surface_3_rect.collidepoint(mouse.get_pos()):
-        text_surface_3 = fonts[1].render('лучник', True, (200, 200, 200))
+        text_surface_3 = fonts[1].render('лучник', True, (230, 230, 230))
         screen.blit(text_surface_3, text_surface_3_rect)
-        if mouse.get_pressed()[0]:
+        if mouse.get_pressed()[0] and MOUSE_PRESSED == False:
             PLAYER = window.archer_animation_right
             GAME_STAGE_STATUS = 'fight'
+        else:
+            MOUSE_PRESSED = False
     elif text_surface_4_rect.collidepoint(mouse.get_pos()):
-        text_surface_4 = fonts[1].render('маг', True, (200, 200, 200))
+        text_surface_4 = fonts[1].render('маг', True, (230, 230, 230))
         screen.blit(text_surface_4, text_surface_4_rect)
-        if mouse.get_pressed()[0]:
+        if mouse.get_pressed()[0] and MOUSE_PRESSED == False:
             PLAYER = window.wizard_animation_right
             GAME_STAGE_STATUS = 'fight'
+        else:
+            MOUSE_PRESSED = False
     else:
-        text_surface_2 = fonts[1].render('рыцарь', True, (155, 155, 155))
-        text_surface_3 = fonts[1].render('лучник', True, (155, 155, 155))
-        text_surface_4 = fonts[1].render('маг', True, (155, 155, 155))
+        text_surface_2 = fonts[1].render('рыцарь', True, (255, 255, 255))
+        text_surface_3 = fonts[1].render('лучник', True, (255, 255, 255))
+        text_surface_4 = fonts[1].render('маг', True, (255, 255, 255))
 
         screen.blit(text_surface_2, text_surface_2_rect)
         screen.blit(text_surface_3, text_surface_3_rect)
@@ -303,7 +313,7 @@ def pygame_init():
 
     square_player = pygame.surface.Surface((64, 64))
 
-    background = pygame.transform.scale(image_background, (bg_width, bg_height))
+    background = pygame.transform.scale(fight_image_background, (bg_width, bg_height))
 
     player_screen_x = 100
     player_screen_y = 420
