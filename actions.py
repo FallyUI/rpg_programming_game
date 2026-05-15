@@ -115,6 +115,28 @@ def attack_enemy(index=0):
         print(f"Враг #{index} уже побеждён.")
         return
 
+    if my_class.game_class.category == "Wizard":
+        base = my_class.weapon.damage
+        is_crit = False
+        if enemy.get("category_up", "") == my_class.game_class.category:
+            roll = randint(0, 100)
+            if roll >= 95:
+                base *= 3
+                is_crit = True
+            else:
+                base *= 2
+                is_crit = True
+
+        data = load_json()
+        data["fireball_launch"] = {
+            "enemy_index": index,
+            "damage": base,
+            "is_crit": is_crit,
+        }
+        save_json(data)
+        print(f"Маг запускает фаербол → враг #{index} (урон: {base}{'!' if is_crit else ''})")
+        return
+
     base = my_class.weapon.damage
     is_crit = False
 

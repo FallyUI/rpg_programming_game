@@ -21,15 +21,22 @@ is_running_user_code = False
 
 
 
-my_class = Character(Archer(), Bow(), LightArmor(), NoShield())
-enemy = Character(Warrior(), Sword(), NoArmor(), Shield())
+def build_game_state():
+    class_name = load_selected_class()
 
+    if class_name == "Wizard":
+        player = Character(Wizard(), Fireball(), NoArmor(), NoShield())
+    elif class_name == "Archer":
+        player = Character(Archer(), Bow(), NoArmor(), NoShield())
+    else:
+        player = Character(Warrior(), Sword(), NoArmor(), NoShield())
 
-game_state = {
-    "player": my_class,
-    "enemies": enemy
-}
+    enemy = Character(Slime(), ShortSword(), NoArmor(), NoShield())
 
+    return {
+        "player": player,
+        "enemies": enemy
+    }
 
 keys = set()
 
@@ -67,7 +74,7 @@ def add_keys(event):
             is_running_user_code = True
             text = textarea.get("1.0", "end")
             new_text = checked_text(text)
-            logs = asyncio.run(create_file(game_state, new_text))
+            logs = asyncio.run(create_file(build_game_state(), new_text))
             print(logs)
             is_running_user_code = False
             data["code_status"] = 0

@@ -1,6 +1,6 @@
 import pygame, time
 from random import randint
-from files import dump_x_y, load_x_y, load_json, load_enemies, save_enemies
+from files import dump_x_y, load_x_y, load_json, save_json, load_enemies, save_enemies, save_selected_class
 
 
 size = {"width": 800, "height": 600}
@@ -55,6 +55,10 @@ HIT_FLASH_DURATION = 0.3
 DIED_SHOW_DURATION = 1.5
 
 
+FIREBALL_SPEED = 6
+FIREBALL_ANIM_DELAY = 80
+FIREBALL_Y_OFFSET = -20
+
 
 class GameWindow:
     def __init__(self):
@@ -62,8 +66,8 @@ class GameWindow:
         pygame.init()
         self.screen = pygame.display.set_mode((size["width"], size["height"]))
 
-        pygame.display.set_icon(pygame.image.load('images/icon.jpg'))
-        pygame.display.set_caption('игра')
+        pygame.display.set_icon(pygame.image.load('images/icon-main.png'))
+        pygame.display.set_caption('Triple CodeMand')
 
         self.knight_animation_right = [
             pygame.image.load('images/characters/knight/knight_idle_right_1_96.png').convert_alpha(),
@@ -100,6 +104,11 @@ class GameWindow:
         self.slime_animation_crit_damage = pygame.image.load('images/enemies/slime/slime_damaged_3_96.png').convert_alpha()
         self.slime_animation_died = pygame.image.load('images/enemies/slime/slime_died_96.png').convert_alpha()
 
+        self.fireball_wizard_animation = [
+            pygame.image.load('images/attacks/fireball_1.png').convert_alpha(),
+            pygame.image.load('images/attacks/fireball_2.png').convert_alpha()
+        ]
+
         self.font_bold_80 = pygame.font.Font('fonts/Nunito-Bold.ttf', 80)
         self.font_bold_60 = pygame.font.Font('fonts/Nunito-Bold.ttf', 60)
         self.font_bold_40 = pygame.font.Font('fonts/Nunito-Bold.ttf', 40)
@@ -112,6 +121,80 @@ class GameWindow:
         sound_background.play(loops=-1)
 
         PLAYER = self.knight_animation_right
+
+
+class FireballProjectile:
+    def __init__(self, start_x, start_y, target_screen_x, target_screen_y,
+                 enemy_index, damage, is_crit, sprites):
+        self.x = float(start_x)
+        self.y = float(start_y)
+        self.target_x = float(target_screen_x)
+        self.target_y = float(target_screen_y)
+        self.enemy_index = enemy_index
+        self.damage = damage
+        self.is_crit = is_crit
+        self.sprites = sprites
+        self.anim_phase = 0
+        self.last_anim_tick = pygame.time.get_ticks()
+        self.hit = False
+
+        dx = self.target_x - self.x
+        dy = self.target_y - self.y
+        dist = max((dx ** 2 + dy ** 2) ** 0.5, 1)
+        self.vx = dx / dist * FIREBALL_SPEED
+        self.vy = dy / dist * FIREBALL_SPEED
+
+    def update(self):
+        self.x += self.vx
+        self.y += self.vy
+
+        now = pygame.time.get_ticks()
+        if now - self.last_anim_tick >= FIREBALL_ANIM_DELAY:
+            self.anim_phase = (self.anim_phase + 1) % len(self.sprites)
+            self.last_anim_tick = now
+
+        dx = self.target_x - self.x
+        dy = self.target_y - self.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+        return dist < FIREBALL_SPEED * 1.5
+
+    def draw(self, screen):
+        sprite = self.sprites[self.anim_phase]
+        rect = sprite.get_rect(center=(int(self.x), int(self.y)))
+        screen.blit(sprite, rect)
+
+    def apply_damage(self):
+        enemies = load_enemies()
+        if self.enemy_index >= len(enemies):
+            return
+        enemy = enemies[self.enemy_index]
+        if not enemy["alive"]:
+            return
+
+        if enemy["armor"] > 0:
+            remaining = enemy["armor"] - self.damage
+            if remaining < 0:
+                enemy["armor"] = 0
+                enemy["health"] += remaining
+            else:
+                enemy["armor"] = remaining
+        else:
+            enemy["health"] -= self.damage
+
+        enemy["hit_at"] = time.time()
+
+        if enemy["health"] <= 0:
+            enemy["health"] = 0
+            enemy["alive"] = False
+            enemy["hit_type"] = "died"
+        elif self.is_crit:
+            enemy["hit_type"] = "crit"
+        else:
+            enemy["hit_type"] = "normal"
+
+        enemies[self.enemy_index] = enemy
+        save_enemies(enemies)
+        self.hit = True
 
 
 def generate_level_enemies(level):
@@ -190,6 +273,13 @@ def check_animation(window):
             PLAYER = window.archer_animation_left
         elif PLAYER == window.wizard_animation_right:
             PLAYER = window.wizard_animation_left
+    elif  data.get("animation_side", "right") == "right":
+        if PLAYER == window.knight_animation_left:
+            PLAYER = window.knight_animation_right
+        elif PLAYER == window.archer_animation_left:
+            PLAYER = window.archer_animation_right
+        elif PLAYER == window.wizard_animation_left:
+            PLAYER = window.wizard_animation_right
 
     return PLAYER
 
@@ -218,7 +308,7 @@ def main_menu(screen, fonts):
     global GAME_STAGE_STATUS, MOUSE_PRESSED
     screen.blit(menu_image_background, (-((512 - 800) // 2), -((512 - 600) // 2)))
 
-    text_surface = fonts[0].render('игра', True, (42, 42, 42))
+    text_surface = fonts[0].render('Triple CodeMand', True, (42, 42, 42))
     text_surface_2 = fonts[1].render('играть', True, (255, 255, 255))
 
     text_surface_rect = text_surface.get_rect(topleft=((size["width"] - text_surface.get_width()) / 2, 110))
@@ -264,15 +354,16 @@ def choose_character(window, screen, fonts):
         screen.blit(text_surface_2, text_surface_2_rect)
         if mouse.get_pressed()[0] and MOUSE_PRESSED == False:
             PLAYER = window.knight_animation_right
+            save_selected_class("Warrior")
             GAME_STAGE_STATUS = 'fight'
         else:
-
             MOUSE_PRESSED = False
     elif text_surface_3_rect.collidepoint(mouse.get_pos()):
         text_surface_3 = fonts[1].render('лучник', True, (230, 230, 230))
         screen.blit(text_surface_3, text_surface_3_rect)
         if mouse.get_pressed()[0] and MOUSE_PRESSED == False:
             PLAYER = window.archer_animation_right
+            save_selected_class("Archer")
             GAME_STAGE_STATUS = 'fight'
         else:
             MOUSE_PRESSED = False
@@ -281,6 +372,7 @@ def choose_character(window, screen, fonts):
         screen.blit(text_surface_4, text_surface_4_rect)
         if mouse.get_pressed()[0] and MOUSE_PRESSED == False:
             PLAYER = window.wizard_animation_right
+            save_selected_class("Wizard")
             GAME_STAGE_STATUS = 'fight'
         else:
             MOUSE_PRESSED = False
@@ -301,6 +393,55 @@ def pause_menu(screen, font):
     screen.blit(text_surface, ((size["width"] - text_surface.get_width()) / 2, 150))
 
 
+def check_fireball_launch(window, fireballs, player_screen_x, player_screen_y):
+    data = load_json()
+    launch = data.get("fireball_launch")
+    if not launch:
+        return
+
+    enemies = load_enemies()
+    idx = launch["enemy_index"]
+    if idx >= len(enemies) or not enemies[idx]["alive"]:
+        data.pop("fireball_launch", None)
+        save_json(data)
+        return
+
+    enemy = enemies[idx]
+
+    fight_x, _ = load_x_y(x_y_fight_file)
+
+    ex = enemy.get(
+        "world_x",
+        ENEMY_SCREEN_X + idx * ENEMY_SPACING_X
+    ) + fight_x + 48
+    ey = ENEMY_SCREEN_Y + 48
+
+    sx = player_screen_x + 48
+    sy = player_screen_y + 48 + FIREBALL_Y_OFFSET
+
+    fb = FireballProjectile(
+        start_x=sx, start_y=sy,
+        target_screen_x=ex, target_screen_y=ey,
+        enemy_index=idx,
+        damage=launch["damage"],
+        is_crit=launch["is_crit"],
+        sprites=window.fireball_wizard_animation
+    )
+    fireballs.append(fb)
+
+    data.pop("fireball_launch", None)
+    save_json(data)
+
+
+def update_fireballs(screen, fireballs):
+    for fb in fireballs[:]:
+        reached = fb.update()
+        fb.draw(screen)
+        if reached:
+            fb.apply_damage()
+            fireballs.remove(fb)
+
+
 
 def pygame_init():
     global GAME_STAGE_STATUS, PAST_GAME_STATE_STATUS, PHASE_PLAYER_ANIMATION, PLAYER, PREV_GAME_STAGE_STATUS
@@ -318,12 +459,15 @@ def pygame_init():
     player_screen_x = 100
     player_screen_y = 420
 
+    fireballs = []
+
     while running:
         pygame.display.update()
 
         if GAME_STAGE_STATUS == 'fight' and PREV_GAME_STAGE_STATUS != 'fight':
             generate_level_enemies(STAGE_PLAYER_LEVEL)
             dump_x_y(FIGHT_BG_START_X, BG_Y_FIGHT, x_y_fight_file)
+            fireballs.clear()
         PREV_GAME_STAGE_STATUS = GAME_STAGE_STATUS
 
         if GAME_STAGE_STATUS == 'main_menu':
@@ -346,8 +490,12 @@ def pygame_init():
             change_x_y_fight(x_y_fight_file)
             game_screen.blit(background, (BG_X_FIGHT, BG_Y_FIGHT))
 
+            check_fireball_launch(window, fireballs, player_screen_x, player_screen_y)
+            update_fireballs(game_screen, fireballs)
+
             render_enemies(game_screen, window, PHASE_PLAYER_ANIMATION)
             game_screen.blit(PLAYER[PHASE_PLAYER_ANIMATION],(player_screen_x, player_screen_y))
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

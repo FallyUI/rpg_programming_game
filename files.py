@@ -1,6 +1,7 @@
 import pickle, subprocess, json, os, time
 
 
+SELECTED_CLASS_FILE = 'data/selected_class.json'
 ENEMIES_FILE = 'data/enemies.json'
 ENEMIES_LOCK = ENEMIES_FILE + '.lock'
 
@@ -13,6 +14,19 @@ user_code = ('from actions import *\n'
              'print(game_state)\n\n'
              'my_class = game_state["player"]\n'
              'enemy = game_state["enemies"]\n\n')
+
+
+def save_selected_class(class_name):
+    with open(SELECTED_CLASS_FILE, 'w') as f:
+        json.dump({"selected_class": class_name}, f)
+
+
+def load_selected_class():
+    try:
+        with open(SELECTED_CLASS_FILE, 'r') as f:
+            return json.load(f).get("selected_class", "Warrior")
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "Warrior"
 
 
 def acquire_lock(lock_path, timeout=2.0, retry=0.005):
@@ -120,8 +134,8 @@ def load_json():
             data = json.load(file)
             return data
     except (FileNotFoundError, json.JSONDecodeError):
-        save_json({"code_status": 0, "animation_side": "right"})
-        return {"code_status": 0, "animation_side": "right"}
+        save_json({"code_status": 0, "animation_side": "right", "fireball_launch": None})
+        return {"code_status": 0, "animation_side": "right", "fireball_launch": None}
 
 
 def save_json(data):
